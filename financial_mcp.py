@@ -35,11 +35,7 @@ async def make_cityfalcon_request(endpoint: str, params: Dict[str, Any] = None) 
             response = await client.get(url, params=params, headers=HEADERS, timeout=30.0)  
             response.raise_for_status()  
             return response.json()  
-        except httpx.HTTPStatusError as e:  
-            if e.response.status_code == 403:  
-                print(f"❌ Authorization error (403) for CityFalcon API endpoint {endpoint}: This feature requires a higher subscription level")  
-                return {"error": "This feature requires a higher subscription level. Please upgrade your CityFalcon subscription to access this functionality."}  
-            else:  
+        except httpx.HTTPStatusError as e:    
                 print(f"❌ HTTP error for CityFalcon API endpoint {endpoint}: {e}")  
                 return {"error": str(e)}  
         except Exception as e:  
@@ -62,11 +58,7 @@ async def make_dcsc_request(endpoint: str, params: Dict[str, Any] = None) -> Dic
             response = await client.get(url, params=params, headers=HEADERS, timeout=30.0)  
             response.raise_for_status()  
             return response.json()  
-        except httpx.HTTPStatusError as e:  
-            if e.response.status_code == 403:  
-                print(f"❌ Authorization error (403) for DCSC API endpoint {endpoint}: This feature requires a higher subscription level")  
-                return {"error": "This feature requires a higher subscription level. Please upgrade your CityFalcon subscription to access the DCSC functionality."}  
-            else:  
+        except httpx.HTTPStatusError as e:   
                 print(f"❌ HTTP error for DCSC API endpoint {endpoint}: {e}")  
                 return {"error": str(e)}  
         except Exception as e:  
@@ -293,7 +285,7 @@ async def get_news_by_ticker(ticker: str, limit: int = 5) -> str:
     params = {  
         "identifier_type": "assets",  
         "identifiers": ticker,  
-        "categories": "mp,op",  # Major and other news publications  
+        "categories": "mp",  # Major and other news publications  
         "time_filter": "d1",    # Last 24 hours  
         "order_by": "latest",  
         "with_sentiment": True,  
@@ -318,7 +310,7 @@ async def get_news_by_topic(topic: str, limit: int = 5) -> str:
     """Get latest financial news related to a general topic (e.g., 'inflation', 'interest rates')."""  
     params = {  
         "search_query": topic,  
-        "categories": "mp,op",  
+        "categories": "mp",  
         "time_filter": "d1",  
         "order_by": "latest",  
         "with_sentiment": True,  
@@ -455,13 +447,18 @@ async def get_analyst_price_targets(ticker: str) -> str:
     if "error" in response:  
         return f"Error fetching price targets: {response['error']}"  
     
-    targets = response.get("targets", [])  
+    # Check if response is a list - handle directly  
+    if isinstance(response, list):  
+        targets = response  
+    else:  
+        # Original approach as fallback  
+        targets = response.get("targets", [])  
     
     if not targets:  
         return f"No analyst price targets found for {ticker}."  
     
     formatted_targets = [format_price_target(target) for target in targets]  
-    return f"Analyst price targets for {ticker}:\n\n" + "\n---\n".join(formatted_targets)  
+    return f"Analyst price targets for {ticker}:\n\n" + "\n---\n".join(formatted_targets)    
 
 @mcp.tool()  
 async def get_price_targets_summary(ticker: str) -> str:  
@@ -475,7 +472,12 @@ async def get_price_targets_summary(ticker: str) -> str:
     if "error" in response:  
         return f"Error fetching price targets summary: {response['error']}"  
     
-    summary = response.get("summary", {})  
+    # Check if response is a list with at least one item  
+    if isinstance(response, list) and response:  
+        summary = response[0]  
+    else:  
+        # Original approach as fallback  
+        summary = response.get("summary", {})  
     
     result = f"Price targets summary for {ticker}:\n\n"  
     result += f"Average target: {summary.get('average', 'N/A')}\n"  
@@ -483,9 +485,9 @@ async def get_price_targets_summary(ticker: str) -> str:
     result += f"Low target: {summary.get('low', 'N/A')}\n"  
     result += f"Number of analysts: {summary.get('numberOfAnalysts', 'N/A')}\n"  
     
-    return result  
+    return result    
 
-@mcp.tool()  
+@mcp.tool()   
 async def get_price_targets_consensus(ticker: str) -> str:  
     """Get consensus of analyst price targets for a specific ticker."""  
     params = {  
@@ -497,7 +499,12 @@ async def get_price_targets_consensus(ticker: str) -> str:
     if "error" in response:  
         return f"Error fetching price targets consensus: {response['error']}"  
     
-    consensus = response.get("consensus", {})  
+    # Check if response is a list with at least one item  
+    if isinstance(response, list) and response:  
+        consensus = response[0]  
+    else:  
+        # Original approach as fallback  
+        consensus = response.get("consensus", {})  
     
     result = f"Price targets consensus for {ticker}:\n\n"  
     result += f"Buy: {consensus.get('buy', 'N/A')}\n"  
@@ -506,7 +513,7 @@ async def get_price_targets_consensus(ticker: str) -> str:
     result += f"Underweight: {consensus.get('underweight', 'N/A')}\n"  
     result += f"Sell: {consensus.get('sell', 'N/A')}\n"  
     
-    return result  
+    return result 
 
 @mcp.tool()  
 async def get_company_filings(source: str, identifiers: str, identifier_type: str = "full_ticker",   
