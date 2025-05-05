@@ -6,21 +6,21 @@ This document outlines the development and refactoring tasks for improving the r
 
 ## ✅ 1. Validate API Responses Against MCP Contracts
 
-- [ ] Go through each function decorated with `@mcp.tool()`
-- [ ] Check the expected structure of each return (string-based, formatted content)  
+- [X] Go through each function decorated with `@mcp.tool()`
+- [X] Check the expected structure of each return (string-based, formatted content)  
 - [ ] Ensure responses from all CityFalcon and DCSC endpoints are parsed correctly and safely
-- [ ] Confirm fallback handling is robust for malformed or empty responses  
+- [X] Confirm fallback handling is robust for malformed or empty responses  
 - [ ] Update docstrings if needed to reflect exact output structure for AI agents
 
 ---
 
 ## 🔄 2. Replace Search Query Calls With Named Entity Search
 
-- [ ] Remove `get_news_by_topic()` (uses `search_query`)
-- [ ] Replace with dedicated functions using `identifier_type=assets` for:
-  - [ ] Macro entities (e.g., `inflation`, `interest rates`, `Federal Reserve System`)
-  - [ ] Themes or economic concepts (e.g., `recession`, `GDP`, `climate risk`)
-- [ ] Create a new MCP tool for each common entity:
+- [X] Remove `get_news_by_topic()` (uses `search_query`)
+- [X] Replace with dedicated functions using `identifier_type=assets` for:
+  - [X] Macro entities (e.g., `inflation`, `interest rates`, `Federal Reserve System`)
+  - [X] Themes or economic concepts (e.g., `recession`, `GDP`, `climate risk`)
+- [-] Create a new MCP tool for each common entity:
   - e.g. `get_news_inflation()`, `get_news_fed()`, etc.
   - Use identifiers from the "assets" category, not full-text search.
 
