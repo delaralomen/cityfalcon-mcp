@@ -12,12 +12,8 @@ from financial_mcp import (
     get_entity_sentiment,
     get_analyst_price_targets,  
     get_price_targets_summary,  
-    get_price_targets_consensus,  
-    get_company_filings,  
-    get_insider_transactions,  
-    get_investor_relations,  
-    get_market_summary,  
-    get_market_performers,  
+    get_price_targets_consensus, 
+    get_insider_transactions, 
     # DCSC API functions  
     get_smart_portfolio,  
     get_portfolio_classification,  
@@ -59,16 +55,8 @@ test_cases = [
     {"func": get_price_targets_summary, "params": {"ticker": "MSFT"}},  
     {"func": get_price_targets_consensus, "params": {"ticker": "AAPL"}},  
     {"func": get_price_targets_consensus, "params": {"ticker": "AMZN"}},  
-    {"func": get_company_filings, "params": {"source": "sec", "identifiers": "AAPL", "per_page": 3}},  
-    {"func": get_company_filings, "params": {"source": "sec", "identifiers": "MSFT", "per_page": 3}},  
     {"func": get_insider_transactions, "params": {"identifiers": "AAPL", "per_page": 3}},  
-    {"func": get_insider_transactions, "params": {"identifiers": "AMZN", "per_page": 3}},  
-    {"func": get_investor_relations, "params": {"identifiers": "AAPL", "per_page": 3}},  
-    {"func": get_investor_relations, "params": {"identifiers": "TSLA", "per_page": 3}},  
-    {"func": get_market_summary, "params": {"identifiers": "AAPL,MSFT", "asset_class": "stocks"}},  
-    {"func": get_market_summary, "params": {"identifiers": "TSLA,GOOGL", "asset_class": "stocks"}},  
-    {"func": get_market_performers, "params": {"asset_class": "stocks", "direction": "gainers", "per_page": 3}},  
-    {"func": get_market_performers, "params": {"asset_class": "stocks", "direction": "losers", "per_page": 3}},  
+    {"func": get_insider_transactions, "params": {"identifiers": "AMZN", "per_page": 3}},
     
     # DCSC API Tests - These require valid portfolio IDs  
     # Use placeholders for now - you'll need to replace with actual portfolio IDs  

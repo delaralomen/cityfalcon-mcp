@@ -487,34 +487,6 @@ async def get_price_targets_consensus(ticker: str) -> str:
     return result 
 
 @mcp.tool()  
-async def get_company_filings(source: str, identifiers: str, identifier_type: str = "full_ticker",   
-                              filing_types: str = None, page: int = 1, per_page: int = 10) -> str:  
-    """Get company filings from various sources (e.g., SEC, Companies House)."""  
-    params = {  
-        "source": source,  
-        "identifier_type": identifier_type,  
-        "identifiers": identifiers,  
-        "page": page,  
-        "per": per_page  
-    }  
-    
-    if filing_types:  
-        params["filing_types"] = filing_types  
-    
-    response = await make_cityfalcon_request("filings", params)  
-    
-    if "error" in response:  
-        return f"Error fetching filings: {response['error']}"  
-    
-    filings = response.get("filings", [])  
-    
-    if not filings:  
-        return f"No filings found for {identifiers} from {source}."  
-    
-    formatted_filings = [format_filing(filing) for filing in filings]  
-    return f"Filings for {identifiers} from {source}:\n\n" + "\n---\n".join(formatted_filings)  
-
-@mcp.tool()  
 async def get_insider_transactions(identifiers: str, transaction_type: str = None,   
                                    page: int = 1, per_page: int = 10) -> str:  
     """Get insider transactions for specified companies."""  
@@ -538,94 +510,7 @@ async def get_insider_transactions(identifiers: str, transaction_type: str = Non
         return f"No insider transactions found for {identifiers}."  
     
     formatted_transactions = [format_insider_transaction(t) for t in transactions]  
-    return f"Insider transactions for {identifiers}:\n\n" + "\n---\n".join(formatted_transactions)  
-
-@mcp.tool()  
-async def get_investor_relations(identifiers: str, type_filter: str = None,  
-                                page: int = 1, per_page: int = 10) -> str:  
-    """Get investor relations data for specified companies."""  
-    params = {  
-        "identifiers": identifiers,  
-        "page": page,  
-        "per": per_page  
-    }  
-    
-    if type_filter:  
-        params["type"] = type_filter  
-    
-    response = await make_cityfalcon_request("investor_relations", params)  
-    
-    if "error" in response:  
-        return f"Error fetching investor relations data: {response['error']}"  
-    
-    relations = response.get("relations", [])  
-    
-    if not relations:  
-        return f"No investor relations data found for {identifiers}."  
-    
-    formatted_relations = [format_investor_relation(r) for r in relations]  
-    return f"Investor relations for {identifiers}:\n\n" + "\n---\n".join(formatted_relations)  
-
-@mcp.tool()  
-async def get_market_summary(identifiers: str, asset_class: str = "stocks") -> str:  
-    """Get market summary for specified identifiers."""  
-    params = {  
-        "identifiers": identifiers,  
-        "asset_class": asset_class  
-    }  
-    
-    response = await make_cityfalcon_request("market_summary", params)  
-    
-    if "error" in response:  
-        return f"Error fetching market summary: {response['error']}"  
-    
-    summary = response.get("summary", {})  
-    
-    result = f"Market summary for {identifiers} ({asset_class}):\n\n"  
-    
-    for item_id, data in summary.items():  
-        result += f"Asset: {item_id}\n"  
-        result += f"  Name: {data.get('name', 'N/A')}\n"  
-        result += f"  Price: {data.get('price', 'N/A')}\n"  
-        result += f"  Change: {data.get('change', 'N/A')}\n"  
-        result += f"  Change (%): {data.get('change_percent', 'N/A')}%\n"  
-        result += f"  Market Cap: {data.get('market_cap', 'N/A')}\n"  
-        result += f"  Volume: {data.get('volume', 'N/A')}\n\n"  
-    
-    return result  
-
-@mcp.tool()  
-async def get_market_performers(asset_class: str = "stocks", period: str = "d1",   
-                               direction: str = "gainers", page: int = 1, per_page: int = 5) -> str:  
-    """Get top market performers (gainers or losers)."""  
-    params = {  
-        "asset_class": asset_class,  
-        "period": period,  
-        "direction": direction,  
-        "page": page,  
-        "per": per_page  
-    }  
-    
-    response = await make_cityfalcon_request("market_summary/performers", params)  
-    
-    if "error" in response:  
-        return f"Error fetching market performers: {response['error']}"  
-    
-    performers = response.get("performers", [])  
-    
-    if not performers:  
-        return f"No {direction} found for {asset_class} over {period}."  
-    
-    result = f"Top {direction} for {asset_class} over {period}:\n\n"  
-    
-    for p in performers:  
-        result += f"- {p.get('name', 'Unknown')} ({p.get('ticker', 'Unknown')})\n"  
-        result += f"  Price: {p.get('price', 'N/A')}\n"  
-        result += f"  Change: {p.get('change', 'N/A')}\n"  
-        result += f"  Change (%): {p.get('change_percent', 'N/A')}%\n"  
-        result += f"  Market Cap: {p.get('market_cap', 'N/A')}\n\n"  
-    
-    return result  
+    return f"Insider transactions for {identifiers}:\n\n" + "\n---\n".join(formatted_transactions) 
 
 ###################  
 # DCSC API ENDPOINTS  
