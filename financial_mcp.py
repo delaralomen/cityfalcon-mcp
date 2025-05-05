@@ -5,37 +5,68 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("financial-news")  
 
-# CityFalcon API configuration  
-API_KEY = ""
-API_BASE_URL = "https://api.cityfalcon.com/v0.2"  
+# API configuration  
+CITYFALCON_API_KEY = ""  
+CITYFALCON_API_BASE_URL = "https://api.cityfalcon.com/v0.2"  
+DCSC_API_BASE_URL = "https://api.cityfalcon.com/dcsc/v0.1"
 
 # Define headers without authorization (since we'll use query param for auth)  
 HEADERS = {  
     "Content-Type": "application/json"  
 }  
 
-# Helper function to make API requests  
-async def make_api_request(endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:  
-    url = f"{API_BASE_URL}/{endpoint}"  
+###################  
+# API REQUEST FUNCTIONS  
+###################  
+
+# Helper function to make CityFalcon API requests  
+async def make_cityfalcon_request(endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:  
+    url = f"{CITYFALCON_API_BASE_URL}/{endpoint}"  
     
     # Initialize params if None  
     if params is None:  
         params = {}  
     
     # Add access token to params instead of using Authorization header  
-    params["access_token"] = API_KEY  
+    params["access_token"] = CITYFALCON_API_KEY  
     
     async with httpx.AsyncClient() as client:  
         try:  
             response = await client.get(url, params=params, headers=HEADERS, timeout=30.0)  
             response.raise_for_status()  
             return response.json()  
+        except httpx.HTTPStatusError as e:    
+                print(f"❌ HTTP error for CityFalcon API endpoint {endpoint}: {e}")  
+                return {"error": str(e)}  
         except Exception as e:  
-            print(f"❌ Error making API request to {endpoint}: {e}")  
-            return {"error": str(e)}
+            print(f"❌ Error making CityFalcon API request to {endpoint}: {e}")  
+            return {"error": str(e)}  
+
+# Helper function to make DCSC API requests  
+async def make_dcsc_request(endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:  
+    url = f"{DCSC_API_BASE_URL}/{endpoint}"  
+    
+    # Initialize params if None  
+    if params is None:  
+        params = {}  
+    
+    # Add access token to params  
+    params["access_token"] = CITYFALCON_API_KEY  
+    
+    async with httpx.AsyncClient() as client:  
+        try:  
+            response = await client.get(url, params=params, headers=HEADERS, timeout=30.0)  
+            response.raise_for_status()  
+            return response.json()  
+        except httpx.HTTPStatusError as e:   
+                print(f"❌ HTTP error for DCSC API endpoint {endpoint}: {e}")  
+                return {"error": str(e)}  
+        except Exception as e:  
+            print(f"❌ Error making DCSC API request to {endpoint}: {e}")  
+            return {"error": str(e)}  
 
 ###################  
-# FORMAT FUNCTIONS  
+# CITYFALCON FORMAT FUNCTIONS  
 ###################  
 
 def format_story(story: Dict[str, Any]) -> str:  
@@ -161,23 +192,107 @@ URL: {url}
 """  
 
 ###################  
-# STORIES ENDPOINTS  
+# DCSC FORMAT FUNCTIONS  
+###################  
+
+def format_portfolio_item(item: Dict[str, Any]) -> str:  
+    """Format portfolio item data from DCSC API"""  
+    ticker = item.get("ticker", "Unknown")  
+    description = item.get("description", "No description available")  
+    weight = item.get("weight", "N/A")  
+    currency = item.get("currency", "N/A")  
+    sector = item.get("sector", "N/A")  
+    
+    return f"""  
+Ticker: {ticker}  
+Description: {description}  
+Weight: {weight}  
+Currency: {currency}  
+Sector: {sector}  
+"""  
+
+def format_portfolio_classification(classification: Dict[str, Any]) -> str:  
+    """Format portfolio classification data"""  
+    category = classification.get("category", "Unknown")  
+    sub_category = classification.get("sub_category", "Unknown")  
+    description = classification.get("description", "No description available")  
+    confidence = classification.get("confidence", "N/A")  
+    
+    return f"""  
+Category: {category}  
+Sub-category: {sub_category}  
+Description: {description}  
+Confidence: {confidence}  
+"""  
+
+def format_performance_metric(metric: Dict[str, Any]) -> str:  
+    """Format performance metric data"""  
+    name = metric.get("name", "Unknown")  
+    value = metric.get("value", "N/A")  
+    benchmark = metric.get("benchmark", "N/A")  
+    description = metric.get("description", "No description available")  
+    
+    return f"""  
+Metric: {name}  
+Value: {value}  
+Benchmark: {benchmark}  
+Description: {description}  
+"""  
+
+def format_sector(sector: Dict[str, Any]) -> str:  
+    """Format sector data"""  
+    name = sector.get("name", "Unknown")  
+    weight = sector.get("weight", "N/A")  
+    benchmark_weight = sector.get("benchmark_weight", "N/A")  
+    active_weight = sector.get("active_weight", "N/A")  
+    
+    return f"""  
+Sector: {name}  
+Weight: {weight}  
+Benchmark Weight: {benchmark_weight}  
+Active Weight: {active_weight}  
+"""  
+
+def format_classified_sector(sector: Dict[str, Any]) -> str:  
+    """Format classified sector data"""  
+    name = sector.get("name", "Unknown")  
+    description = sector.get("description", "No description available")  
+    weight = sector.get("weight", "N/A")  
+    stocks = sector.get("stocks", [])  
+    
+    formatted = f"""  
+Sector: {name}  
+Description: {description}  
+Weight: {weight}  
+Stocks:  
+"""  
+    
+    for stock in stocks:  
+        ticker = stock.get("ticker", "Unknown")  
+        name = stock.get("name", "Unknown")  
+        weight = stock.get("weight", "N/A")  
+        formatted += f"  - {ticker} ({name}): {weight}\n"  
+    
+    return formatted  
+
+###################  
+# CITYFALCON API ENDPOINTS  
 ###################  
 
 @mcp.tool()  
-async def get_news_by_ticker(ticker: str, limit: int = 5) -> str:  
+async def get_news_by_ticker_or_topic(ticker: str, limit: int = 5) -> str:  
     """Get latest financial news for a stock ticker."""  
     params = {  
         "identifier_type": "assets",  
         "identifiers": ticker,  
-        "categories": "mp,op",  # Major and other news publications  
+        "categories": "mp",  # Major and other news publications  
         "time_filter": "d1",    # Last 24 hours  
         "order_by": "latest",  
         "with_sentiment": True,  
         "limit": limit  
     }  
     
-    response = await make_api_request("stories", params)  
+    response = await make_cityfalcon_request("stories", params)  
     
     if "error" in response:  
         return f"Error fetching news: {response['error']}"  
@@ -188,32 +303,7 @@ async def get_news_by_ticker(ticker: str, limit: int = 5) -> str:
         return "No news found for this ticker."  
     
     formatted_stories = [format_story(story) for story in stories]  
-    return "\n---\n".join(formatted_stories)  
-
-@mcp.tool()  
-async def get_news_by_topic(topic: str, limit: int = 5) -> str:  
-    """Get latest financial news related to a general topic (e.g., 'inflation', 'interest rates')."""  
-    params = {  
-        "search_query": topic,  
-        "categories": "mp,op",  
-        "time_filter": "d1",  
-        "order_by": "latest",  
-        "with_sentiment": True,  
-        "limit": limit  
-    }  
-    
-    response = await make_api_request("stories", params)  
-    
-    if "error" in response:  
-        return f"Error fetching topic news: {response['error']}"  
-    
-    stories = response.get("stories", [])  
-    
-    if not stories:  
-        return "No news found for this topic."  
-    
-    formatted_stories = [format_story(story) for story in stories]  
-    return "\n---\n".join(formatted_stories)  
+    return "\n---\n".join(formatted_stories)
 
 @mcp.tool()  
 async def get_similar_stories(story_uuid: str, limit: int = 5) -> str:  
@@ -222,7 +312,7 @@ async def get_similar_stories(story_uuid: str, limit: int = 5) -> str:
         "limit": limit  
     }  
     
-    response = await make_api_request(f"stories/{story_uuid}/similar_stories", params)  
+    response = await make_cityfalcon_request(f"stories/{story_uuid}/similar_stories", params)  
     
     if "error" in response:  
         return f"Error fetching similar stories: {response['error']}"  
@@ -243,7 +333,7 @@ async def get_stories_by_uuid(uuids: str) -> str:
         "with_sentiment": True  
     }  
     
-    response = await make_api_request("stories/by_uuid", params)  
+    response = await make_cityfalcon_request("stories/by_uuid", params)  
     
     if "error" in response:  
         return f"Error fetching stories: {response['error']}"  
@@ -256,13 +346,9 @@ async def get_stories_by_uuid(uuids: str) -> str:
     formatted_stories = [format_story(story) for story in stories]  
     return "\n---\n".join(formatted_stories)  
 
-###################  
-# SENTIMENT ENDPOINTS  
-###################  
-
 @mcp.tool()  
 async def get_entity_sentiment(identifiers: str, period: str = "d1") -> str:  
-    """Get sentiment data for entities (stocks, topics, etc.)"""  
+    """Get sentiment data for entities (bonds, stocks, topics, etc.)"""  
     params = {  
         "identifier_type": "topic_classes",  
         "identifiers": identifiers,  
@@ -271,7 +357,7 @@ async def get_entity_sentiment(identifiers: str, period: str = "d1") -> str:
         "statistics_for_period": True  
     }  
     
-    response = await make_api_request("services/sentiment", params)  
+    response = await make_cityfalcon_request("services/sentiment", params)  
     
     if "error" in response:  
         return f"Error fetching sentiment data: {response['error']}"  
@@ -279,54 +365,46 @@ async def get_entity_sentiment(identifiers: str, period: str = "d1") -> str:
     # Format the response in a readable way  
     result = f"Sentiment data for {identifiers} over period {period}:\n\n"  
     
+    # Check if entities is a list (new API format) or dict (old format)  
     entities = response.get("entities", {})  
-    for entity_id, data in entities.items():  
-        result += f"Entity: {entity_id}\n"  
-        avg = data.get("average", {})  
-        result += f"  Average sentiment: {avg.get('sentiment', 'N/A')}\n"  
-        result += f"  Sample size: {avg.get('sampleSize', 'N/A')}\n"  
-        
-        stats = data.get("statistics", {})  
-        if stats:  
-            result += "  Statistics:\n"  
-            for stat_period, stat_data in stats.items():  
-                result += f"    {stat_period}: {stat_data.get('sentiment', 'N/A')} (sample: {stat_data.get('sampleSize', 'N/A')})\n"  
-        
-        result += "\n"  
     
-    return result  
-
-@mcp.tool()  
-async def extract_entities(text: str, language: str = "EN") -> str:  
-    """Extract entities from provided text."""  
-    params = {  
-        "text": text,  
-        "language": language  
-    }  
+    if isinstance(entities, list):  
+        # Handle list format  
+        for entity in entities:  
+            entity_id = entity.get("id", "Unknown")  
+            result += f"Entity: {entity_id}\n"  
+            
+            # Handle average sentiment if available  
+            avg = entity.get("average", {})  
+            if avg:  
+                result += f"  Average sentiment: {avg.get('sentiment', 'N/A')}\n"  
+                result += f"  Sample size: {avg.get('sampleSize', 'N/A')}\n"  
+            
+            # Handle statistics if available  
+            stats = entity.get("statistics", {})  
+            if stats:  
+                result += "  Statistics:\n"  
+                for stat_period, stat_data in stats.items():  
+                    result += f"    {stat_period}: {stat_data.get('sentiment', 'N/A')} (sample: {stat_data.get('sampleSize', 'N/A')})\n"  
+            
+            result += "\n"  
+    else:  
+        # Handle dictionary format (original code)  
+        for entity_id, data in entities.items():  
+            result += f"Entity: {entity_id}\n"  
+            avg = data.get("average", {})  
+            result += f"  Average sentiment: {avg.get('sentiment', 'N/A')}\n"  
+            result += f"  Sample size: {avg.get('sampleSize', 'N/A')}\n"  
+            
+            stats = data.get("statistics", {})  
+            if stats:  
+                result += "  Statistics:\n"  
+                for stat_period, stat_data in stats.items():  
+                    result += f"    {stat_period}: {stat_data.get('sentiment', 'N/A')} (sample: {stat_data.get('sampleSize', 'N/A')})\n"  
+            
+            result += "\n"  
     
-    response = await make_api_request("services/entity_extraction", params)  
-    
-    if "error" in response:  
-        return f"Error extracting entities: {response['error']}"  
-    
-    entities = response.get("entities", [])  
-    
-    if not entities:  
-        return "No entities found in the provided text."  
-    
-    result = "Extracted entities:\n\n"  
-    
-    for entity in entities:  
-        name = entity.get("name", "Unknown")  
-        entity_type = entity.get("type", "Unknown")  
-        score = entity.get("score", "N/A")  
-        result += f"- {name} (Type: {entity_type}, Score: {score})\n"  
-    
-    return result  
-
-###################  
-# ANALYST PRICE TARGETS  
-###################  
+    return result 
 
 @mcp.tool()  
 async def get_analyst_price_targets(ticker: str) -> str:  
@@ -335,18 +413,23 @@ async def get_analyst_price_targets(ticker: str) -> str:
         "identifier": ticker  
     }  
     
-    response = await make_api_request("analyst_price_targets", params)  
+    response = await make_cityfalcon_request("analyst_price_targets", params)  
     
     if "error" in response:  
         return f"Error fetching price targets: {response['error']}"  
     
-    targets = response.get("targets", [])  
+    # Check if response is a list - handle directly  
+    if isinstance(response, list):  
+        targets = response  
+    else:  
+        # Original approach as fallback  
+        targets = response.get("targets", [])  
     
     if not targets:  
         return f"No analyst price targets found for {ticker}."  
     
     formatted_targets = [format_price_target(target) for target in targets]  
-    return f"Analyst price targets for {ticker}:\n\n" + "\n---\n".join(formatted_targets)  
+    return f"Analyst price targets for {ticker}:\n\n" + "\n---\n".join(formatted_targets)    
 
 @mcp.tool()  
 async def get_price_targets_summary(ticker: str) -> str:  
@@ -355,12 +438,17 @@ async def get_price_targets_summary(ticker: str) -> str:
         "identifier": ticker  
     }  
     
-    response = await make_api_request("analyst_price_targets/summary", params)  
+    response = await make_cityfalcon_request("analyst_price_targets/summary", params)  
     
     if "error" in response:  
         return f"Error fetching price targets summary: {response['error']}"  
     
-    summary = response.get("summary", {})  
+    # Check if response is a list with at least one item  
+    if isinstance(response, list) and response:  
+        summary = response[0]  
+    else:  
+        # Original approach as fallback  
+        summary = response.get("summary", {})  
     
     result = f"Price targets summary for {ticker}:\n\n"  
     result += f"Average target: {summary.get('average', 'N/A')}\n"  
@@ -368,21 +456,26 @@ async def get_price_targets_summary(ticker: str) -> str:
     result += f"Low target: {summary.get('low', 'N/A')}\n"  
     result += f"Number of analysts: {summary.get('numberOfAnalysts', 'N/A')}\n"  
     
-    return result  
+    return result    
 
-@mcp.tool()  
+@mcp.tool()   
 async def get_price_targets_consensus(ticker: str) -> str:  
     """Get consensus of analyst price targets for a specific ticker."""  
     params = {  
         "identifier": ticker  
     }  
     
-    response = await make_api_request("analyst_price_targets/consensus", params)  
+    response = await make_cityfalcon_request("analyst_price_targets/consensus", params)  
     
     if "error" in response:  
         return f"Error fetching price targets consensus: {response['error']}"  
     
-    consensus = response.get("consensus", {})  
+    # Check if response is a list with at least one item  
+    if isinstance(response, list) and response:  
+        consensus = response[0]  
+    else:  
+        # Original approach as fallback  
+        consensus = response.get("consensus", {})  
     
     result = f"Price targets consensus for {ticker}:\n\n"  
     result += f"Buy: {consensus.get('buy', 'N/A')}\n"  
@@ -391,43 +484,7 @@ async def get_price_targets_consensus(ticker: str) -> str:
     result += f"Underweight: {consensus.get('underweight', 'N/A')}\n"  
     result += f"Sell: {consensus.get('sell', 'N/A')}\n"  
     
-    return result  
-
-###################  
-# FILINGS  
-###################  
-
-@mcp.tool()  
-async def get_company_filings(source: str, identifiers: str, identifier_type: str = "full_ticker",   
-                              filing_types: str = None, page: int = 1, per_page: int = 10) -> str:  
-    """Get company filings from various sources (e.g., SEC, Companies House)."""  
-    params = {  
-        "source": source,  
-        "identifier_type": identifier_type,  
-        "identifiers": identifiers,  
-        "page": page,  
-        "per": per_page  
-    }  
-    
-    if filing_types:  
-        params["filing_types"] = filing_types  
-    
-    response = await make_api_request("filings", params)  
-    
-    if "error" in response:  
-        return f"Error fetching filings: {response['error']}"  
-    
-    filings = response.get("filings", [])  
-    
-    if not filings:  
-        return f"No filings found for {identifiers} from {source}."  
-    
-    formatted_filings = [format_filing(filing) for filing in filings]  
-    return f"Filings for {identifiers} from {source}:\n\n" + "\n---\n".join(formatted_filings)  
-
-###################  
-# INSIDER TRANSACTIONS  
-###################  
+    return result 
 
 @mcp.tool()  
 async def get_insider_transactions(identifiers: str, transaction_type: str = None,   
@@ -442,7 +499,7 @@ async def get_insider_transactions(identifiers: str, transaction_type: str = Non
     if transaction_type:  
         params["transaction_type"] = transaction_type  
     
-    response = await make_api_request("insider_transactions", params)  
+    response = await make_cityfalcon_request("insider_transactions", params)  
     
     if "error" in response:  
         return f"Error fetching insider transactions: {response['error']}"  
@@ -453,105 +510,152 @@ async def get_insider_transactions(identifiers: str, transaction_type: str = Non
         return f"No insider transactions found for {identifiers}."  
     
     formatted_transactions = [format_insider_transaction(t) for t in transactions]  
-    return f"Insider transactions for {identifiers}:\n\n" + "\n---\n".join(formatted_transactions)  
+    return f"Insider transactions for {identifiers}:\n\n" + "\n---\n".join(formatted_transactions) 
 
 ###################  
-# INVESTOR RELATIONS  
-###################  
-
-@mcp.tool()  
-async def get_investor_relations(identifiers: str, type_filter: str = None,  
-                                page: int = 1, per_page: int = 10) -> str:  
-    """Get investor relations data for specified companies."""  
-    params = {  
-        "identifiers": identifiers,  
-        "page": page,  
-        "per": per_page  
-    }  
-    
-    if type_filter:  
-        params["type"] = type_filter  
-    
-    response = await make_api_request("investor_relations", params)  
-    
-    if "error" in response:  
-        return f"Error fetching investor relations data: {response['error']}"  
-    
-    relations = response.get("relations", [])  
-    
-    if not relations:  
-        return f"No investor relations data found for {identifiers}."  
-    
-    formatted_relations = [format_investor_relation(r) for r in relations]  
-    return f"Investor relations for {identifiers}:\n\n" + "\n---\n".join(formatted_relations)  
-
-###################  
-# MARKET SUMMARY  
+# DCSC API ENDPOINTS  
 ###################  
 
 @mcp.tool()  
-async def get_market_summary(identifiers: str, asset_class: str = "stocks") -> str:  
-    """Get market summary for specified identifiers."""  
+async def get_smart_portfolio(portfolio_id: str) -> str:  
+    """Get detailed information about a smart portfolio."""  
     params = {  
-        "identifiers": identifiers,  
-        "asset_class": asset_class  
+        "portfolio_id": portfolio_id  
     }  
     
-    response = await make_api_request("market_summary", params)  
+    response = await make_dcsc_request("smart_portfolio", params)  
     
     if "error" in response:  
-        return f"Error fetching market summary: {response['error']}"  
+        return f"Error fetching smart portfolio: {response['error']}"  
     
-    summary = response.get("summary", {})  
+    portfolio = response.get("portfolio", {})  
     
-    result = f"Market summary for {identifiers} ({asset_class}):\n\n"  
+    result = f"Smart Portfolio: {portfolio.get('name', 'Unnamed Portfolio')}\n\n"  
+    result += f"Description: {portfolio.get('description', 'No description available')}\n"  
+    result += f"Currency: {portfolio.get('currency', 'N/A')}\n\n"  
     
-    for item_id, data in summary.items():  
-        result += f"Asset: {item_id}\n"  
-        result += f"  Name: {data.get('name', 'N/A')}\n"  
-        result += f"  Price: {data.get('price', 'N/A')}\n"  
-        result += f"  Change: {data.get('change', 'N/A')}\n"  
-        result += f"  Change (%): {data.get('change_percent', 'N/A')}%\n"  
-        result += f"  Market Cap: {data.get('market_cap', 'N/A')}\n"  
-        result += f"  Volume: {data.get('volume', 'N/A')}\n\n"  
+    holdings = portfolio.get("holdings", [])  
+    
+    if not holdings:  
+        result += "No holdings found in this portfolio."  
+        return result  
+    
+    result += "Holdings:\n\n"  
+    
+    formatted_holdings = [format_portfolio_item(holding) for holding in holdings]  
+    return result + "\n---\n".join(formatted_holdings)  
+
+@mcp.tool()  
+async def get_portfolio_classification(portfolio_id: str) -> str:  
+    """Get classification data for a portfolio."""  
+    params = {  
+        "portfolio_id": portfolio_id  
+    }  
+    
+    response = await make_dcsc_request("portfolio_classification", params)  
+    
+    if "error" in response:  
+        return f"Error fetching portfolio classification: {response['error']}"  
+    
+    classifications = response.get("classifications", [])  
+    
+    if not classifications:  
+        return f"No classification data found for portfolio {portfolio_id}."  
+    
+    result = f"Portfolio Classification for ID {portfolio_id}:\n\n"  
+    
+    formatted_classifications = [format_portfolio_classification(cls) for cls in classifications]  
+    return result + "\n---\n".join(formatted_classifications)  
+
+@mcp.tool()  
+async def get_portfolio_performance(portfolio_id: str, benchmark_id: str = None) -> str:  
+    """Get performance and risk metrics for a portfolio."""  
+    params = {  
+        "portfolio_id": portfolio_id  
+    }  
+    
+    if benchmark_id:  
+        params["benchmark_id"] = benchmark_id  
+    
+    response = await make_dcsc_request("portfolio_performance", params)  
+    
+    if "error" in response:  
+        return f"Error fetching portfolio performance: {response['error']}"  
+    
+    metrics = response.get("metrics", [])  
+    
+    if not metrics:  
+        return f"No performance data found for portfolio {portfolio_id}."  
+    
+    result = f"Portfolio Performance & Risk Metrics for ID {portfolio_id}:\n\n"  
+    
+    # Group metrics by category  
+    categories = {}  
+    for metric in metrics:  
+        category = metric.get("category", "Other")  
+        if category not in categories:  
+            categories[category] = []  
+        categories[category].append(metric)  
+    
+    # Format metrics by category  
+    for category, category_metrics in categories.items():  
+        result += f"Category: {category}\n"  
+        for metric in category_metrics:  
+            result += f"  - {metric.get('name', 'Unknown')}: {metric.get('value', 'N/A')}\n"  
+            result += f"    Description: {metric.get('description', 'No description')}\n"  
+        result += "\n"  
     
     return result  
 
 @mcp.tool()  
-async def get_market_performers(asset_class: str = "stocks", period: str = "d1",   
-                               direction: str = "gainers", page: int = 1, per_page: int = 5) -> str:  
-    """Get top market performers (gainers or losers)."""  
+async def get_portfolio_sectors(portfolio_id: str, benchmark_id: str = None) -> str:  
+    """Get sector breakdown for a portfolio."""  
     params = {  
-        "asset_class": asset_class,  
-        "period": period,  
-        "direction": direction,  
-        "page": page,  
-        "per": per_page  
+        "portfolio_id": portfolio_id  
     }  
     
-    response = await make_api_request("market_summary/performers", params)  
+    if benchmark_id:  
+        params["benchmark_id"] = benchmark_id  
+    
+    response = await make_dcsc_request("sectors", params)  
     
     if "error" in response:  
-        return f"Error fetching market performers: {response['error']}"  
+        return f"Error fetching portfolio sectors: {response['error']}"  
     
-    performers = response.get("performers", [])  
+    sectors = response.get("sectors", [])  
     
-    if not performers:  
-        return f"No {direction} found for {asset_class} over {period}."  
+    if not sectors:  
+        return f"No sector data found for portfolio {portfolio_id}."  
     
-    result = f"Top {direction} for {asset_class} over {period}:\n\n"  
+    result = f"Sector Breakdown for Portfolio ID {portfolio_id}:\n\n"  
     
-    for p in performers:  
-        result += f"- {p.get('name', 'Unknown')} ({p.get('ticker', 'Unknown')})\n"  
-        result += f"  Price: {p.get('price', 'N/A')}\n"  
-        result += f"  Change: {p.get('change', 'N/A')}\n"  
-        result += f"  Change (%): {p.get('change_percent', 'N/A')}%\n"  
-        result += f"  Market Cap: {p.get('market_cap', 'N/A')}\n\n"  
+    formatted_sectors = [format_sector(sector) for sector in sectors]  
+    return result + "\n---\n".join(formatted_sectors)  
+
+@mcp.tool()  
+async def get_classified_sectors(portfolio_id: str) -> str:  
+    """Get AI-classified sectors for a portfolio."""  
+    params = {  
+        "portfolio_id": portfolio_id  
+    }  
     
-    return result  
+    response = await make_dcsc_request("classified_sectors", params)  
+    
+    if "error" in response:  
+        return f"Error fetching classified sectors: {response['error']}"  
+    
+    sectors = response.get("sectors", [])  
+    
+    if not sectors:  
+        return f"No classified sector data found for portfolio {portfolio_id}."  
+    
+    result = f"AI-Classified Sectors for Portfolio ID {portfolio_id}:\n\n"  
+    
+    formatted_sectors = [format_classified_sector(sector) for sector in sectors]  
+    return result + "\n---\n".join(formatted_sectors)  
 
 # Start the MCP server  
 if __name__ == "__main__":  
-    print("MCP running")  
+    print("MCP running with CityFalcon and DCSC APIs")  
     # Initialize and run the server  
     mcp.run(transport='stdio')
