@@ -280,7 +280,7 @@ Stocks:
 ###################  
 
 @mcp.tool()  
-async def get_news_by_ticker(ticker: str, limit: int = 5) -> str:  
+async def get_news_by_ticker_or_topic(ticker: str, limit: int = 5) -> str:  
     """Get latest financial news for a stock ticker."""  
     params = {  
         "identifier_type": "assets",  
@@ -303,32 +303,7 @@ async def get_news_by_ticker(ticker: str, limit: int = 5) -> str:
         return "No news found for this ticker."  
     
     formatted_stories = [format_story(story) for story in stories]  
-    return "\n---\n".join(formatted_stories)  
-
-@mcp.tool()  
-async def get_news_by_topic(topic: str, limit: int = 5) -> str:  
-    """Get latest financial news related to a general topic (e.g., 'inflation', 'interest rates')."""  
-    params = {  
-        "search_query": topic,  
-        "categories": "mp",  
-        "time_filter": "d1",  
-        "order_by": "latest",  
-        "with_sentiment": True,  
-        "limit": limit  
-    }  
-    
-    response = await make_cityfalcon_request("stories", params)  
-    
-    if "error" in response:  
-        return f"Error fetching topic news: {response['error']}"  
-    
-    stories = response.get("stories", [])  
-    
-    if not stories:  
-        return "No news found for this topic."  
-    
-    formatted_stories = [format_story(story) for story in stories]  
-    return "\n---\n".join(formatted_stories)  
+    return "\n---\n".join(formatted_stories)
 
 @mcp.tool()  
 async def get_similar_stories(story_uuid: str, limit: int = 5) -> str:  
@@ -373,7 +348,7 @@ async def get_stories_by_uuid(uuids: str) -> str:
 
 @mcp.tool()  
 async def get_entity_sentiment(identifiers: str, period: str = "d1") -> str:  
-    """Get sentiment data for entities (stocks, topics, etc.)"""  
+    """Get sentiment data for entities (bonds, stocks, topics, etc.)"""  
     params = {  
         "identifier_type": "topic_classes",  
         "identifiers": identifiers,  
@@ -390,50 +365,46 @@ async def get_entity_sentiment(identifiers: str, period: str = "d1") -> str:
     # Format the response in a readable way  
     result = f"Sentiment data for {identifiers} over period {period}:\n\n"  
     
+    # Check if entities is a list (new API format) or dict (old format)  
     entities = response.get("entities", {})  
-    for entity_id, data in entities.items():  
-        result += f"Entity: {entity_id}\n"  
-        avg = data.get("average", {})  
-        result += f"  Average sentiment: {avg.get('sentiment', 'N/A')}\n"  
-        result += f"  Sample size: {avg.get('sampleSize', 'N/A')}\n"  
-        
-        stats = data.get("statistics", {})  
-        if stats:  
-            result += "  Statistics:\n"  
-            for stat_period, stat_data in stats.items():  
-                result += f"    {stat_period}: {stat_data.get('sentiment', 'N/A')} (sample: {stat_data.get('sampleSize', 'N/A')})\n"  
-        
-        result += "\n"  
     
-    return result  
-
-@mcp.tool()  
-async def extract_entities(text: str, language: str = "EN") -> str:  
-    """Extract entities from provided text."""  
-    params = {  
-        "text": text,  
-        "language": language  
-    }  
+    if isinstance(entities, list):  
+        # Handle list format  
+        for entity in entities:  
+            entity_id = entity.get("id", "Unknown")  
+            result += f"Entity: {entity_id}\n"  
+            
+            # Handle average sentiment if available  
+            avg = entity.get("average", {})  
+            if avg:  
+                result += f"  Average sentiment: {avg.get('sentiment', 'N/A')}\n"  
+                result += f"  Sample size: {avg.get('sampleSize', 'N/A')}\n"  
+            
+            # Handle statistics if available  
+            stats = entity.get("statistics", {})  
+            if stats:  
+                result += "  Statistics:\n"  
+                for stat_period, stat_data in stats.items():  
+                    result += f"    {stat_period}: {stat_data.get('sentiment', 'N/A')} (sample: {stat_data.get('sampleSize', 'N/A')})\n"  
+            
+            result += "\n"  
+    else:  
+        # Handle dictionary format (original code)  
+        for entity_id, data in entities.items():  
+            result += f"Entity: {entity_id}\n"  
+            avg = data.get("average", {})  
+            result += f"  Average sentiment: {avg.get('sentiment', 'N/A')}\n"  
+            result += f"  Sample size: {avg.get('sampleSize', 'N/A')}\n"  
+            
+            stats = data.get("statistics", {})  
+            if stats:  
+                result += "  Statistics:\n"  
+                for stat_period, stat_data in stats.items():  
+                    result += f"    {stat_period}: {stat_data.get('sentiment', 'N/A')} (sample: {stat_data.get('sampleSize', 'N/A')})\n"  
+            
+            result += "\n"  
     
-    response = await make_cityfalcon_request("services/entity_extraction", params)  
-    
-    if "error" in response:  
-        return f"Error extracting entities: {response['error']}"  
-    
-    entities = response.get("entities", [])  
-    
-    if not entities:  
-        return "No entities found in the provided text."  
-    
-    result = "Extracted entities:\n\n"  
-    
-    for entity in entities:  
-        name = entity.get("name", "Unknown")  
-        entity_type = entity.get("type", "Unknown")  
-        score = entity.get("score", "N/A")  
-        result += f"- {name} (Type: {entity_type}, Score: {score})\n"  
-    
-    return result  
+    return result 
 
 @mcp.tool()  
 async def get_analyst_price_targets(ticker: str) -> str:  
