@@ -26,29 +26,21 @@ DCSC (Digital Client Solution Center) is CityFalcon's portfolio analysis API tha
 
 ## Features
 
-This MCP server wraps all major CityFalcon and DCSC API endpoints into convenient function calls:
+This MCP server wraps key CityFalcon and DCSC API endpoints into convenient function calls:
 
 ### CityFalcon: News and Stories
-- `get_news_by_ticker`: Get the latest news for specific stock tickers
-- `get_news_by_topic`: Search for news related to financial topics
+- `get_news_by_ticker_or_topic`: Get the latest news for specific stock tickers or general financial topics
 - `get_similar_stories`: Find articles similar to a specific story
 - `get_stories_by_uuid`: Retrieve specific stories by their UUIDs
 
-### CityFalcon: Market Data
-- `get_market_summary`: Get market summaries for specific assets
-- `get_market_performers`: Find top gainers or losers in various asset classes
-
 ### CityFalcon: Analysis
-- `get_entity_sentiment`: Retrieve sentiment analysis for specific entities
-- `extract_entities`: Extract named entities from text with financial context
+- `get_entity_sentiment`: Retrieve sentiment analysis for specific entities (supports both bonds, stocks, etc.)
 - `get_analyst_price_targets`: Retrieve analyst price targets for stocks
 - `get_price_targets_summary`: Get summarized price target information
 - `get_price_targets_consensus`: See consensus ratings (buy/sell/hold)
 
 ### CityFalcon: Corporate Information
-- `get_company_filings`: Access regulatory filings from SEC, Companies House, etc.
 - `get_insider_transactions`: Track insider buying and selling activities
-- `get_investor_relations`: Access earnings calls, presentations, etc.
 
 ### DCSC: Portfolio Analysis
 - `get_smart_portfolio`: Get detailed information about a portfolio and its holdings
@@ -88,13 +80,16 @@ Once the server is running, it can be accessed through any MCP client that can c
 ### CityFalcon API Examples:
 ```python
 # Example: Get financial news for Apple stock
-result = await get_news_by_ticker("AAPL")
+result = await get_news_by_ticker_or_topic("AAPL")
 
 # Example: Search for news about inflation
-result = await get_news_by_topic("inflation")
+result = await get_news_by_ticker_or_topic("inflation")
 
-# Example: Get market summary for tech stocks
-result = await get_market_summary("AAPL,MSFT,GOOG", "stocks")
+# Example: Get sentiment data for stocks
+result = await get_entity_sentiment("stocks", "d1")
+
+# Example: Get analyst price targets
+result = await get_analyst_price_targets("TSLA")
 ```
 
 ### DCSC API Examples:
@@ -112,8 +107,24 @@ result = await get_portfolio_performance("portfolio_123", "benchmark_456")
 result = await get_portfolio_sectors("portfolio_123")
 ```
 
+## Testing
+
+The repository includes a comprehensive test suite in `tests.py` that tests all API endpoints. The test suite includes:
+
+- Progress bar display of test completion
+- Detailed logging of all API responses to log files
+- Summary report of passed/failed tests
+
+To run the tests:
+```
+python tests.py
+```
+
+Test results will be saved in the `logs` directory with timestamps for easy reference.
+
 ## Tutorial for MCP Server with Claude
-Or you can use the MCP server with a chatbot like Claude.
+
+You can use the MCP server with a chatbot like Claude.
 https://modelcontextprotocol.io/quickstart/server
 
 ## Integration with AI Agents
@@ -127,6 +138,14 @@ This MCP server is particularly useful for AI agents that need to access real-ti
 5. Analyze investment portfolios and provide insights
 6. Compare portfolio performance against benchmarks
 7. Identify sector exposures and investment themes
+
+## Recent Updates
+
+- Consolidated news functions into a single versatile `get_news_by_ticker_or_topic` function
+- Enhanced error handling for API responses
+- Added support for both list and dictionary response formats in entity sentiment analysis
+- Created comprehensive test suite with logging capabilities
+- Fixed compatibility issues with the latest CityFalcon API response formats
 
 ## Acknowledgements
 
