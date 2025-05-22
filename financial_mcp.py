@@ -607,147 +607,183 @@ async def get_insider_transactions(identifiers: str, transaction_type: str = Non
     formatted_transactions = [format_insider_transaction(t) for t in transactions]  
     return f"Insider transactions for {identifiers}:\n\n" + "\n---\n".join(formatted_transactions) 
 
-###################  
-# DCSC API ENDPOINTS  
-###################  
+###################
+# DCSC – FORMAT HELPERS
+###################
 
-# @mcp.tool()  
-# async def get_smart_portfolio(portfolio_id: str) -> str:  
-#     """Get detailed information about a smart portfolio."""  
-#     params = {  
-#         "portfolio_id": portfolio_id  
-#     }  
-    
-#     response = await make_dcsc_request("smart_portfolio", params)  
-    
-#     if "error" in response:  
-#         return f"Error fetching smart portfolio: {response['error']}"  
-    
-#     portfolio = response.get("portfolio", {})  
-    
-#     result = f"Smart Portfolio: {portfolio.get('name', 'Unnamed Portfolio')}\n\n"  
-#     result += f"Description: {portfolio.get('description', 'No description available')}\n"  
-#     result += f"Currency: {portfolio.get('currency', 'N/A')}\n\n"  
-    
-#     holdings = portfolio.get("holdings", [])  
-    
-#     if not holdings:  
-#         result += "No holdings found in this portfolio."  
-#         return result  
-    
-#     result += "Holdings:\n\n"  
-    
-#     formatted_holdings = [format_portfolio_item(holding) for holding in holdings]  
-#     return result + "\n---\n".join(formatted_holdings)  
+def format_sector_meta(sector: Dict[str, Any]) -> str:
+    """
+    Convert one element returned by /v0.1/sectors into a short, readable line.
 
-# @mcp.tool()  
-# async def get_portfolio_classification(portfolio_id: str) -> str:  
-#     """Get classification data for a portfolio."""  
-#     params = {  
-#         "portfolio_id": portfolio_id  
-#     }  
-    
-#     response = await make_dcsc_request("portfolio_classification", params)  
-    
-#     if "error" in response:  
-#         return f"Error fetching portfolio classification: {response['error']}"  
-    
-#     classifications = response.get("classifications", [])  
-    
-#     if not classifications:  
-#         return f"No classification data found for portfolio {portfolio_id}."  
-    
-#     result = f"Portfolio Classification for ID {portfolio_id}:\n\n"  
-    
-#     formatted_classifications = [format_portfolio_classification(cls) for cls in classifications]  
-#     return result + "\n---\n".join(formatted_classifications)  
+    Expected keys in *sector*:
+        name (str)   – Human readable sector name, e.g. “Information Technology”
+        slug (str)   – URL-safe identifier used by all other DCSC endpoints
+        description  – (optional) free-text description of the sector
+    """
+    return f"- {sector.get('name','Unknown')}  (slug: {sector.get('slug','n/a')})" \
+           + (f"\n  {sector.get('description')}" if sector.get("description") else "")
 
-# @mcp.tool()  
-# async def get_portfolio_performance(portfolio_id: str, benchmark_id: str = None) -> str:  
-#     """Get performance and risk metrics for a portfolio."""  
-#     params = {  
-#         "portfolio_id": portfolio_id  
-#     }  
-    
-#     if benchmark_id:  
-#         params["benchmark_id"] = benchmark_id  
-    
-#     response = await make_dcsc_request("portfolio_performance", params)  
-    
-#     if "error" in response:  
-#         return f"Error fetching portfolio performance: {response['error']}"  
-    
-#     metrics = response.get("metrics", [])  
-    
-#     if not metrics:  
-#         return f"No performance data found for portfolio {portfolio_id}."  
-    
-#     result = f"Portfolio Performance & Risk Metrics for ID {portfolio_id}:\n\n"  
-    
-#     # Group metrics by category  
-#     categories = {}  
-#     for metric in metrics:  
-#         category = metric.get("category", "Other")  
-#         if category not in categories:  
-#             categories[category] = []  
-#         categories[category].append(metric)  
-    
-#     # Format metrics by category  
-#     for category, category_metrics in categories.items():  
-#         result += f"Category: {category}\n"  
-#         for metric in category_metrics:  
-#             result += f"  - {metric.get('name', 'Unknown')}: {metric.get('value', 'N/A')}\n"  
-#             result += f"    Description: {metric.get('description', 'No description')}\n"  
-#         result += "\n"  
-    
-#     return result  
 
-# @mcp.tool()  
-# async def get_portfolio_sectors(portfolio_id: str, benchmark_id: str = None) -> str:  
-#     """Get sector breakdown for a portfolio."""  
-#     params = {  
-#         "portfolio_id": portfolio_id  
-#     }  
-    
-#     if benchmark_id:  
-#         params["benchmark_id"] = benchmark_id  
-    
-#     response = await make_dcsc_request("sectors", params)  
-    
-#     if "error" in response:  
-#         return f"Error fetching portfolio sectors: {response['error']}"  
-    
-#     sectors = response.get("sectors", [])  
-    
-#     if not sectors:  
-#         return f"No sector data found for portfolio {portfolio_id}."  
-    
-#     result = f"Sector Breakdown for Portfolio ID {portfolio_id}:\n\n"  
-    
-#     formatted_sectors = [format_sector(sector) for sector in sectors]  
-#     return result + "\n---\n".join(formatted_sectors)  
+def format_sector_perf(sector: Dict[str, Any]) -> str:
+    """
+    Format one performance object returned by /v0.1/sectors/performance.
 
-# @mcp.tool()  
-# async def get_classified_sectors(portfolio_id: str) -> str:  
-#     """Get AI-classified sectors for a portfolio."""  
-#     params = {  
-#         "portfolio_id": portfolio_id  
-#     }  
-    
-#     response = await make_dcsc_request("classified_sectors", params)  
-    
-#     if "error" in response:  
-#         return f"Error fetching classified sectors: {response['error']}"  
-    
-#     sectors = response.get("sectors", [])  
-    
-#     if not sectors:  
-#         return f"No classified sector data found for portfolio {portfolio_id}."  
-    
-#     result = f"AI-Classified Sectors for Portfolio ID {portfolio_id}:\n\n"  
-    
-#     formatted_sectors = [format_classified_sector(sector) for sector in sectors]  
-#     return result + "\n---\n".join(formatted_sectors)  
+    Typical keys (may vary by DCSC version):
+        slug, name              – sector identifiers
+        price, priceChange      – latest level and Δ (abs)
+        priceChangePct          – Δ in %
+        period                  – time window used, e.g. “d1”, “w1”
+        benchmark*, excess*     – numbers vs. benchmark (if requested)
+    """
+    return (
+        f"{sector.get('name','Unknown')}  [{sector.get('slug')}] — {sector.get('period','n/a')}\n"
+        f"  Price: {sector.get('price','n/a')}\n"
+        f"  Change: {sector.get('priceChange','n/a')} "
+        f"({sector.get('priceChangePct','n/a')}%)\n"
+        + (
+            f"  Excess vs benchmark: {sector.get('excessReturn','n/a')} "
+            f"({sector.get('excessReturnPct','n/a')}%)\n"
+            if 'excessReturn' in sector else ''
+        )
+    )
+
+###################
+# DCSC – ENDPOINT WRAPPERS
+###################
+
+@mcp.tool()
+async def list_sectors() -> str:
+    """
+    List all sectors recognised by the DCSC data-service.
+
+    HOW TO USE
+    ----------
+    1. Call without arguments – it returns every sector’s `name` and `slug`.
+    2. Pick one or more *slug* values as input for the other DCSC tools.
+
+    Under the hood:
+        GET  /v0.1/sectors
+    """
+    response = await make_dcsc_request("sectors")
+
+    if "error" in response:
+        return f"Error fetching sector catalogue: {response['error']}"
+
+    sectors = response.get("sectors") or response  # some versions return bare list
+    if not sectors:
+        return "No sectors found."
+
+    return "\n".join(format_sector_meta(s) for s in sectors)
+
+
+@mcp.tool()
+async def get_sector_performance(
+    slugs: str,
+    period: str = "d1",
+    benchmark: Optional[str] = None,
+) -> str:
+    """
+    Get absolute and relative performance for one OR many sectors.
+
+    Parameters
+    ----------
+    slugs : str
+        Sector slug or multiple comma-separated slugs as returned by `list_sectors`.
+        Example: "information-technology,health-care".
+    period : str, optional
+        Time window:
+            d1  – 1-day
+            w1  – 1-week
+            m1  – 1-month
+            ytd – Year-to-date
+        (Default: "d1")
+    benchmark : str, optional
+        If supplied, performance is also reported versus this benchmark slug.
+        Use another sector slug *or* a dedicated benchmark slug if your DCSC
+        account exposes them.
+
+    Endpoint
+    --------
+        GET  /v0.1/sectors/performance
+        Query params:
+            slugs       – required
+            period      – required
+            benchmark   – optional
+    """
+    params: Dict[str, Any] = {
+        "slugs": slugs,
+        "period": period,
+    }
+    if benchmark:
+        params["benchmark"] = benchmark
+
+    response = await make_dcsc_request("sectors/performance", params)
+
+    if "error" in response:
+        return f"Error fetching sector performance: {response['error']}"
+
+    perf = response.get("sectors") or response  # some builds return bare list
+    if not perf:
+        return f"No performance data found for {slugs} (period={period})."
+
+    # keep original request order
+    if isinstance(perf, dict):  # keyed by slug
+        perf_list = [perf[k] for k in slugs.split(",") if k in perf]
+    else:
+        perf_list = perf
+
+    return "\n\n".join(format_sector_perf(p) for p in perf_list)
+
+
+@mcp.tool()
+async def get_sector_history(
+    slug: str,
+    start: str,
+    end: str,
+    interval: str = "d1",
+) -> str:
+    """
+    Download historical price/performance for a single sector.
+
+    Parameters
+    ----------
+    slug : str
+        Sector slug (see `list_sectors`).
+    start, end : str
+        ISO-8601 dates (YYYY-MM-DD).  Example: start="2023-01-01".
+    interval : str, optional
+        Candle width / sampling interval:
+            d1  – daily (default)
+            w1  – weekly
+            m1  – monthly
+
+    Endpoint
+    --------
+        GET /v0.1/sectors/{slug}/history
+        Query params:
+            start, end, interval
+    """
+    endpoint = f"sectors/{slug}/history"
+    params = {"start": start, "end": end, "interval": interval}
+
+    response = await make_dcsc_request(endpoint, params)
+
+    if "error" in response:
+        return f"Error fetching history for {slug}: {response['error']}"
+
+    candles = response.get("history") or response
+    if not candles:
+        return f"No historical data for {slug} in the given range."
+
+    # simple ASCII table
+    header = "Date        Close      Δ      Δ%"
+    lines = [header, "-" * len(header)]
+    for c in candles:
+        lines.append(
+            f"{c.get('date',''):10} {c.get('close','n/a'):>8} "
+            f"{c.get('change','n/a'):>6} {c.get('changePct','n/a'):>6}"
+        )
+    return "\n".join(lines)
 
 # Start the MCP server  
 if __name__ == "__main__":  
