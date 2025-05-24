@@ -648,18 +648,15 @@ def format_sector_perf(sector: Dict[str, Any]) -> str:
     )
 
 ###################
-# DCSC – ENDPOINT WRAPPERS
+# DCSC – ENDPOINT WRAPPERS (CORRECTED)
 ###################
 
 @mcp.tool()
 async def list_sectors() -> str:
     """
-    List all sectors recognised by the DCSC data-service.
+    List all sectors recognized by the DCSC data-service.
 
-    HOW TO USE
-    ----------
-    1. Call without arguments – it returns every sector’s `name` and `slug`.
-    2. Pick one or more *slug* values as input for the other DCSC tools.
+    Returns complete sector hierarchy from all levels (1, 2, 3, 4).
 
     Under the hood:
         GET  /v0.1/sectors
@@ -669,121 +666,430 @@ async def list_sectors() -> str:
     if "error" in response:
         return f"Error fetching sector catalogue: {response['error']}"
 
-    sectors = response.get("sectors") or response  # some versions return bare list
+    # Handle different response formats
+    if isinstance(response, list):
+        sectors = response
+    else:
+        sectors = response.get("sectors", response)
+    
     if not sectors:
         return "No sectors found."
 
-    return "\n".join(format_sector_meta(s) for s in sectors)
-
-
-@mcp.tool()
-async def get_sector_performance(
-    slugs: str,
-    period: str = "d1",
-    benchmark: Optional[str] = None,
-) -> str:
-    """
-    Get absolute and relative performance for one OR many sectors.
-
-    Parameters
-    ----------
-    slugs : str
-        Sector slug or multiple comma-separated slugs as returned by `list_sectors`.
-        Example: "information-technology,health-care".
-    period : str, optional
-        Time window:
-            d1  – 1-day
-            w1  – 1-week
-            m1  – 1-month
-            ytd – Year-to-date
-        (Default: "d1")
-    benchmark : str, optional
-        If supplied, performance is also reported versus this benchmark slug.
-        Use another sector slug *or* a dedicated benchmark slug if your DCSC
-        account exposes them.
-
-    Endpoint
-    --------
-        GET  /v0.1/sectors/performance
-        Query params:
-            slugs       – required
-            period      – required
-            benchmark   – optional
-    """
-    params: Dict[str, Any] = {
-        "slugs": slugs,
-        "period": period,
-    }
-    if benchmark:
-        params["benchmark"] = benchmark
-
-    response = await make_dcsc_request("sectors/performance", params)
-
-    if "error" in response:
-        return f"Error fetching sector performance: {response['error']}"
-
-    perf = response.get("sectors") or response  # some builds return bare list
-    if not perf:
-        return f"No performance data found for {slugs} (period={period})."
-
-    # keep original request order
-    if isinstance(perf, dict):  # keyed by slug
-        perf_list = [perf[k] for k in slugs.split(",") if k in perf]
+    # Format the hierarchical sector data
+    result = "DCSC Sector Hierarchy:\n\n"
+    
+    if isinstance(sectors, dict):
+        for level, level_sectors in sectors.items():
+            result += f"Level {level}:\n"
+            for sector in level_sectors:
+                name = sector.get('name', 'Unknown')
+                slug = sector.get('slug', 'n/a')
+                result += f"  - {name} (slug: {slug})\n"
+            result += "\n"
     else:
-        perf_list = perf
-
-    return "\n\n".join(format_sector_perf(p) for p in perf_list)
+        # If it's a flat list
+        for sector in sectors:
+            name = sector.get('name', 'Unknown')
+            slug = sector.get('slug', 'n/a')
+            level = sector.get('level', 'Unknown')
+            result += f"Level {level}: {name} (slug: {slug})\n"
+    
+    return result
 
 
 @mcp.tool()
-async def get_sector_history(
-    slug: str,
-    start: str,
-    end: str,
-    interval: str = "d1",
-) -> str:
+async def get_sector_hierarchy(level: int, slug: str) -> str:
     """
-    Download historical price/performance for a single sector.
+    Get hierarchy for a specific sector at a given level.
 
-    Parameters
-    ----------
-    slug : str
-        Sector slug (see `list_sectors`).
-    start, end : str
-        ISO-8601 dates (YYYY-MM-DD).  Example: start="2023-01-01".
-    interval : str, optional
-        Candle width / sampling interval:
-            d1  – daily (default)
-            w1  – weekly
-            m1  – monthly
+    Parameters:
+        level (int): Sector Level (1, 2, 3 or 4)
+        slug (str): Sector slug identifier
 
-    Endpoint
-    --------
-        GET /v0.1/sectors/{slug}/history
-        Query params:
-            start, end, interval
+    Endpoint:
+        GET /v0.1/sectors/fetch
     """
-    endpoint = f"sectors/{slug}/history"
-    params = {"start": start, "end": end, "interval": interval}
+    params = {
+        "level": level,
+        "slug": slug
+    }
 
-    response = await make_dcsc_request(endpoint, params)
+    response = await make_dcsc_request("sectors/fetch", params)
 
     if "error" in response:
-        return f"Error fetching history for {slug}: {response['error']}"
+        return f"Error fetching sector hierarchy: {response['error']}"
 
-    candles = response.get("history") or response
-    if not candles:
-        return f"No historical data for {slug} in the given range."
+    result = f"Sector hierarchy for {slug} (Level {level}):\n\n"
+    
+    # Format the hierarchy response
+    if "hierarchy" in response:
+        hierarchy = response["hierarchy"]
+        for item in hierarchy:
+            name = item.get('name', 'Unknown')
+            slug = item.get('slug', 'n/a')
+            level = item.get('level', 'Unknown')
+            result += f"Level {level}: {name} (slug: {slug})\n"
+    else:
+        result += str(response)
+    
+    return result
 
-    # simple ASCII table
-    header = "Date        Close      Δ      Δ%"
-    lines = [header, "-" * len(header)]
-    for c in candles:
-        lines.append(
-            f"{c.get('date',''):10} {c.get('close','n/a'):>8} "
-            f"{c.get('change','n/a'):>6} {c.get('changePct','n/a'):>6}"
-        )
-    return "\n".join(lines)
+
+@mcp.tool()
+async def get_smart_portfolio(
+    level: int,
+    slugs: str,
+    max_securities: int = 10,
+    min_relevance: int = 10,
+    min_confidence: int = 20,
+    company_type: str = "public",
+    countries: str = "all",
+    allocation_type: str = "relevance"
+) -> str:
+    """
+    Get relevant companies for given sector(s).
+
+    Parameters:
+        level (int): Sector Level (1, 2, 3 or 4)
+        slugs (str): Comma separated sector slugs (max 20)
+        max_securities (int): Number of companies to return (1-200, default: 10)
+        min_relevance (int): Minimum relevance (1-100, default: 10)
+        min_confidence (int): Minimum confidence (0-100, default: 20)
+        company_type (str): "public", "private" or "both" (default: "public")
+        countries (str): Comma separated country codes or "all" (default: "all")
+        allocation_type (str): "relevance" or "equal" (default: "relevance")
+
+    Endpoint:
+        GET /v0.1/smart_portfolio
+    """
+    params = {
+        "level": level,
+        "slugs": slugs,
+        "max_securities": max_securities,
+        "min_relevance": min_relevance,
+        "min_confidence": min_confidence,
+        "company_type": company_type,
+        "countries": countries,
+        "allocation_type": allocation_type
+    }
+
+    response = await make_dcsc_request("smart_portfolio", params)
+
+    if "error" in response:
+        return f"Error fetching smart portfolio: {response['error']}"
+
+    result = f"Smart Portfolio for sectors {slugs} (Level {level}):\n\n"
+    
+    # Format portfolio companies
+    if "portfolio" in response:
+        portfolio = response["portfolio"]
+        for company in portfolio:
+            name = company.get('name', 'Unknown')
+            ticker = company.get('ticker', 'N/A')
+            allocation = company.get('allocation', 'N/A')
+            relevance = company.get('relevance', 'N/A')
+            confidence = company.get('confidence', 'N/A')
+            result += f"• {name} ({ticker})\n"
+            result += f"  Allocation: {allocation}%\n"
+            result += f"  Relevance: {relevance}\n"
+            result += f"  Confidence: {confidence}\n\n"
+    else:
+        result += str(response)
+    
+    return result
+
+
+@mcp.tool()
+async def get_portfolio_classification(
+    identifiers: str,
+    identifier_type: str = "slug",
+    allocation: str = None,
+    min_relevance: int = 10,
+    min_confidence: int = 20,
+    level: int = None,
+    show_missing_sectors: bool = True,
+    missing_sectors_limit: int = 10
+) -> str:
+    """
+    Get relevant sectors for given companies.
+
+    Parameters:
+        identifiers (str): Comma separated company identifiers (max 200)
+        identifier_type (str): "slug", "name", "ticker", "full_ticker", or "legal_id" (default: "slug")
+        allocation (str): Comma separated percentage values for corresponding identifiers
+        min_relevance (int): Minimum relevance (1-100, default: 10)
+        min_confidence (int): Minimum confidence (0-100, default: 20)
+        level (int): Return only sectors of this level (1, 2, 3 or 4)
+        show_missing_sectors (bool): Show missing sectors in summary (default: True)
+        missing_sectors_limit (int): Number of missing sectors per level (default: 10)
+
+    Endpoint:
+        GET /v0.1/portfolio_classification
+    """
+    params = {
+        "identifiers": identifiers,
+        "identifier_type": identifier_type,
+        "min_relevance": min_relevance,
+        "min_confidence": min_confidence,
+        "show_missing_sectors": show_missing_sectors,
+        "missing_sectors_limit": missing_sectors_limit
+    }
+    
+    if allocation:
+        params["allocation"] = allocation
+    if level:
+        params["level"] = level
+
+    response = await make_dcsc_request("portfolio_classification", params)
+
+    if "error" in response:
+        return f"Error fetching portfolio classification: {response['error']}"
+
+    result = f"Portfolio Classification for {identifiers}:\n\n"
+    
+    # Format classification results
+    if "classification" in response:
+        classification = response["classification"]
+        for sector in classification:
+            name = sector.get('name', 'Unknown')
+            slug = sector.get('slug', 'N/A')
+            level = sector.get('level', 'N/A')
+            allocation = sector.get('allocation', 'N/A')
+            relevance = sector.get('relevance', 'N/A')
+            confidence = sector.get('confidence', 'N/A')
+            result += f"Level {level}: {name} (slug: {slug})\n"
+            result += f"  Allocation: {allocation}%\n"
+            result += f"  Relevance: {relevance}\n"
+            result += f"  Confidence: {confidence}\n\n"
+    else:
+        result += str(response)
+    
+    return result
+
+
+@mcp.tool()
+async def get_portfolio_performance_risk(
+    identifiers: str,
+    identifier_type: str = "slug",
+    allocation: str = None,
+    period: str = "1y"
+) -> str:
+    """
+    Calculate performance and risk of a portfolio.
+
+    Parameters:
+        identifiers (str): Comma separated company identifiers (max 200)
+        identifier_type (str): "slug", "name", "ticker", or "full_ticker" (default: "slug")
+        allocation (str): Comma separated percentage values for corresponding identifiers
+        period (str): Time period for calculation (default: "1y")
+
+    Endpoint:
+        GET /v0.1/portfolio_perf_risk
+    """
+    params = {
+        "identifiers": identifiers,
+        "identifier_type": identifier_type,
+        "period": period
+    }
+    
+    if allocation:
+        params["allocation"] = allocation
+
+    response = await make_dcsc_request("portfolio_perf_risk", params)
+
+    if "error" in response:
+        return f"Error calculating portfolio performance: {response['error']}"
+
+    result = f"Portfolio Performance & Risk Analysis ({period}):\n\n"
+    
+    # Format performance metrics
+    if "performance" in response:
+        perf = response["performance"]
+        result += f"Total Return: {perf.get('total_return', 'N/A')}%\n"
+        result += f"Annualized Return: {perf.get('annualized_return', 'N/A')}%\n"
+        result += f"Volatility: {perf.get('volatility', 'N/A')}%\n"
+        result += f"Sharpe Ratio: {perf.get('sharpe_ratio', 'N/A')}\n"
+        result += f"Max Drawdown: {perf.get('max_drawdown', 'N/A')}%\n"
+    
+    if "risk" in response:
+        risk = response["risk"]
+        result += f"\nRisk Metrics:\n"
+        result += f"Value at Risk (95%): {risk.get('var_95', 'N/A')}%\n"
+        result += f"Expected Shortfall: {risk.get('expected_shortfall', 'N/A')}%\n"
+    
+    if not ("performance" in response or "risk" in response):
+        result += str(response)
+    
+    return result
+
+
+@mcp.tool()
+async def get_classified_sectors_mapping(
+    classification_name: str,
+    sector_name: str = None,
+    sector_number: str = None
+) -> str:
+    """
+    Get corresponding DCSC sector(s) for other classification systems.
+
+    Parameters:
+        classification_name (str): Classification system name (e.g., "NAICS")
+        sector_name (str): Name of sector in original system (optional)
+        sector_number (str): Comma-separated sector numbers (max 10, optional)
+
+    Note: Either sector_name or sector_number must be provided.
+
+    Endpoint:
+        GET /v0.1/classified_sectors/mappings
+    """
+    params = {
+        "classification_name": classification_name
+    }
+    
+    if sector_name:
+        params["sector_name"] = sector_name
+    elif sector_number:
+        params["sector_number"] = sector_number
+    else:
+        return "Error: Either sector_name or sector_number must be provided"
+
+    response = await make_dcsc_request("classified_sectors/mappings", params)
+
+    if "error" in response:
+        return f"Error fetching sector mappings: {response['error']}"
+
+    result = f"DCSC Sector Mappings for {classification_name}:\n\n"
+    
+    if "mappings" in response:
+        mappings = response["mappings"]
+        for mapping in mappings:
+            original_name = mapping.get('original_sector_name', 'N/A')
+            original_number = mapping.get('original_sector_number', 'N/A')
+            dcsc_sectors = mapping.get('dcsc_sectors', [])
+            
+            result += f"Original: {original_name} ({original_number})\n"
+            result += "DCSC Sectors:\n"
+            for dcsc_sector in dcsc_sectors:
+                name = dcsc_sector.get('name', 'Unknown')
+                slug = dcsc_sector.get('slug', 'N/A')
+                level = dcsc_sector.get('level', 'N/A')
+                confidence = dcsc_sector.get('confidence', 'N/A')
+                result += f"  - Level {level}: {name} (slug: {slug}) [Confidence: {confidence}]\n"
+            result += "\n"
+    else:
+        result += str(response)
+    
+    return result
+
+
+############
+#HELP FUNC##
+############
+
+@mcp.tool()
+async def list_available_capabilities() -> str:
+    """
+    List all available MCP tools and their capabilities for financial data analysis.
+    
+    This tool provides a comprehensive overview of what functionality is available
+    through this MCP server, including both CityFalcon and DCSC API endpoints.
+    
+    Returns:
+        str: A formatted description of all available tools and their capabilities.
+    """
+    
+    capabilities = """
+🔧 AVAILABLE MCP TOOLS & CAPABILITIES
+=====================================
+
+📰 CITYFALCON NEWS & SENTIMENT TOOLS
+------------------------------------
+
+1. get_news_by_ticker_or_topic(ticker, limit=5)
+   • Get latest financial news stories for any asset or topic
+   • Uses full ticker symbols (recommended format)
+   • Returns formatted news with sentiment, source, paywall info
+   • Time filter: last 24 hours from major publications
+
+2. get_similar_stories(story_uuid, limit=5)
+   • Find news stories similar to a given reference story
+   • Requires a story UUID from previous news searches
+   • Useful for discovering related coverage
+
+3. get_stories_by_uuid(uuids)
+   • Retrieve specific news stories by their UUID(s)
+   • Input: comma-separated UUIDs
+   • For special use cases when you have specific story IDs
+
+4. get_entity_sentiment(identifiers, period="d1")
+   • Get time-series sentiment analysis for financial entities
+   • Periods: d1 (1 day), w1 (1 week), etc.
+   • Returns average sentiment and statistical breakdown
+   • Shows story count per sentiment category
+
+📊 ANALYST & PRICE TARGET TOOLS (US Assets)
+-------------------------------------------
+
+5. get_analyst_price_targets(ticker)
+   • Get detailed analyst price targets for US stocks
+   • Shows individual analyst recommendations with firm names
+   • Includes current/previous targets and rating changes
+
+6. get_price_targets_summary(ticker)
+   • Get statistical summary of price targets
+   • Returns average, high, low targets + analyst count
+   • Quick overview of consensus expectations
+
+7. get_price_targets_consensus(ticker)
+   • Get breakdown of analyst ratings consensus
+   • Shows buy/overweight/hold/underweight/sell counts
+   • Useful for understanding overall analyst sentiment
+
+👥 INSIDER TRADING TOOLS
+------------------------
+
+8. get_insider_transactions(identifiers, transaction_type=None, page=1, per_page=10)
+   • Track insider buying/selling activity
+   • Filter by transaction type if needed
+   • Shows insider name, position, transaction details
+   • Pagination support for large datasets
+
+🏭 DCSC SECTOR ANALYSIS TOOLS
+-----------------------------
+
+9. list_sectors()
+   • Get complete catalog of available sectors
+   • Returns sector names and slugs for use in other DCSC tools
+   • Essential first step for sector analysis
+
+10. get_sector_performance(slugs, period="d1", benchmark=None)
+    • Get performance data for one or multiple sectors
+    • Periods: d1, w1, m1, ytd
+    • Optional benchmark comparison
+    • Shows price changes (absolute and percentage)
+
+11. get_sector_history(slug, start, end, interval="d1")
+    • Download historical sector performance data
+    • Date range: ISO format (YYYY-MM-DD)
+    • Intervals: d1 (daily), w1 (weekly), m1 (monthly)
+    • Returns time series data in table format
+
+💡 USAGE TIPS
+-------------
+• Use full ticker symbols (e.g., "AAPL" not "Apple") for best results
+• Start with list_sectors() to see available sector slugs for DCSC tools
+• Price target tools work primarily with US equities
+• News tools support both individual tickers and broader topics
+• Sentiment analysis helps gauge market mood around specific assets
+• Combine tools for comprehensive analysis (news + sentiment + analyst targets)
+
+🔑 DATA SOURCES
+---------------
+• CityFalcon API: Financial news, sentiment, analyst data, insider transactions
+• DCSC API: Sector performance, historical data, sector classifications
+"""
+    
+    return capabilities
 
 # Start the MCP server  
 if __name__ == "__main__":  

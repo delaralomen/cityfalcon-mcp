@@ -14,12 +14,15 @@ from financial_mcp import (
     get_price_targets_summary,  
     get_price_targets_consensus, 
     get_insider_transactions, 
-    # DCSC API functions  
-    get_smart_portfolio,  
-    get_portfolio_classification,  
-    get_portfolio_performance,  
-    get_portfolio_sectors,  
-    get_classified_sectors  
+    # DCSC API functions (corrected)
+    list_sectors,
+    get_sector_hierarchy,
+    get_smart_portfolio,
+    get_portfolio_classification,
+    get_portfolio_performance_risk,
+    get_classified_sectors_mapping,
+    # Help function
+    list_available_capabilities
 )  
 
 # Setup log file  
@@ -58,13 +61,47 @@ test_cases = [
     {"func": get_insider_transactions, "params": {"identifiers": "AAPL", "per_page": 3}},  
     {"func": get_insider_transactions, "params": {"identifiers": "AMZN", "per_page": 3}},
     
-    # DCSC API Tests - These require valid portfolio IDs  
-    # Use placeholders for now - you'll need to replace with actual portfolio IDs  
-    {"func": get_smart_portfolio, "params": {"portfolio_id": "portfolio_id_example"}, "skip": True},  
-    {"func": get_portfolio_classification, "params": {"portfolio_id": "portfolio_id_example"}, "skip": True},  
-    {"func": get_portfolio_performance, "params": {"portfolio_id": "portfolio_id_example"}, "skip": True},  
-    {"func": get_portfolio_sectors, "params": {"portfolio_id": "portfolio_id_example"}, "skip": True},  
-    {"func": get_classified_sectors, "params": {"portfolio_id": "portfolio_id_example"}, "skip": True},  
+    # DCSC API Tests (corrected)
+    {"func": list_sectors, "params": {}},
+    
+    # Note: The following tests may fail if we don't have valid sector slugs
+    # You should run list_sectors first to get actual slugs, then update these tests
+    {"func": get_sector_hierarchy, "params": {"level": 1, "slug": "technology"}, "skip": True},  # Skip until we get valid slugs
+    
+    {"func": get_smart_portfolio, "params": {
+        "level": 1,
+        "slugs": "technology",
+        "max_securities": 5,
+        "min_relevance": 10,
+        "company_type": "public"
+    }, "skip": True},  # Skip until we get valid slugs
+    
+    {"func": get_portfolio_classification, "params": {
+        "identifiers": "AAPL,MSFT,GOOGL",
+        "identifier_type": "ticker",
+        "allocation": "40,30,30",
+        "min_relevance": 10
+    }},
+    
+    {"func": get_portfolio_performance_risk, "params": {
+        "identifiers": "AAPL,MSFT",
+        "identifier_type": "ticker",
+        "allocation": "50,50",
+        "period": "1y"
+    }},
+    
+    {"func": get_classified_sectors_mapping, "params": {
+        "classification_name": "NAICS",
+        "sector_number": "5112"
+    }},
+    
+    {"func": get_classified_sectors_mapping, "params": {
+        "classification_name": "GICS",
+        "sector_name": "Information Technology"
+    }},
+    
+    # Help function test
+    {"func": list_available_capabilities, "params": {}},
 ]  
 
 async def run_test_case(test_case):  
@@ -174,6 +211,9 @@ Errors: {errors}
 Skipped: {skipped}  
 {'='*50}  
 Detailed logs written to: {log_filename}  
+
+NOTE: Some DCSC tests are skipped because they require valid sector slugs.
+Run list_sectors() first to get actual slugs, then update the test parameters.
 """  
     
     print(summary)  
