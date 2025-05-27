@@ -2,7 +2,7 @@
 
 A Multi-agent Communications Protocol (MCP) server that provides access to CityFalcon's comprehensive financial news and data API, as well as the DCSC portfolio analysis API. This server allows AI agents and other applications to retrieve real-time financial news, market data, analyst opinions, portfolio analysis, and more through standardized function calls.
 
-## What is CityFalcon?
+## What is [CityFalcon](https://www.cityfalcon.ai/)?
 
 CityFalcon is a financial content and data discovery platform that aggregates, filters, and analyzes financial news and information from thousands of sources. The API provides access to:
 
