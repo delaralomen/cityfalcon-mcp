@@ -1,14 +1,22 @@
 import asyncio  
+import os
 from typing import Any, Dict, List, Optional  
 import httpx  
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP  
+
+
+load_dotenv()
 
 mcp = FastMCP("financial-news")  
 
 # API configuration  
-CITYFALCON_API_KEY = ""  
 CITYFALCON_API_BASE_URL = "https://api.cityfalcon.com/v0.2"  
 DCSC_API_BASE_URL = "https://api.cityfalcon.com/dcsc/v0.1"
+
+
+def _get_cityfalcon_api_key() -> str:
+    return os.getenv("CITYFALCON_API_KEY", "").strip()
 
 # Define headers without authorization (since we'll use query param for auth)  
 HEADERS = {  
@@ -26,9 +34,13 @@ async def make_cityfalcon_request(endpoint: str, params: Dict[str, Any] = None) 
     # Initialize params if None  
     if params is None:  
         params = {}  
+
+    api_key = _get_cityfalcon_api_key()
+    if not api_key:
+        return {"error": "Missing CITYFALCON_API_KEY environment variable"}
     
     # Add access token to params instead of using Authorization header  
-    params["access_token"] = CITYFALCON_API_KEY  
+    params["access_token"] = api_key  
     
     async with httpx.AsyncClient() as client:  
         try:  
@@ -49,9 +61,13 @@ async def make_dcsc_request(endpoint: str, params: Dict[str, Any] = None) -> Dic
     # Initialize params if None  
     if params is None:  
         params = {}  
+
+    api_key = _get_cityfalcon_api_key()
+    if not api_key:
+        return {"error": "Missing CITYFALCON_API_KEY environment variable"}
     
     # Add access token to params  
-    params["access_token"] = CITYFALCON_API_KEY  
+    params["access_token"] = api_key  
     
     async with httpx.AsyncClient() as client:  
         try:  

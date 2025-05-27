@@ -1,21 +1,28 @@
 import asyncio
+import os
 from typing import Any
 import httpx
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("financial-news")
 
 
-API_KEY = ""
+load_dotenv()
+
+
+MARKETAUX_API_TOKEN = os.getenv("MARKETAUX_API_TOKEN", "").strip()
 NEWS_API_URL = "https://api.marketaux.com/v1/news/all"
 
 
 async def fetch_financial_news(ticker: str) -> list[dict[str, Any]] | None:
+    if not MARKETAUX_API_TOKEN:
+        return None
     params = {
         "symbols": ticker.upper(),
         "filter_entities": True,
         "language": "en",
-        "api_token": API_KEY
+        "api_token": MARKETAUX_API_TOKEN
     }
 
     async with httpx.AsyncClient() as client:
@@ -58,11 +65,13 @@ URL: {item.get("url", "#")}
 
 
 async def fetch_news_by_topic(topic: str) -> list[dict[str, Any]] | None:
+    if not MARKETAUX_API_TOKEN:
+        return None
     params = {
         "query": topic,
         "filter_entities": True,
         "language": "en",
-        "api_token": API_KEY,
+        "api_token": MARKETAUX_API_TOKEN,
     }
 
     async with httpx.AsyncClient() as client:

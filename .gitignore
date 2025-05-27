@@ -9,6 +9,7 @@ build/
 venv/
 .env
 .env.*
+!.env.example
 .Python
 pip-log.txt
 *.sqlite3
