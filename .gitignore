@@ -44,7 +44,7 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
-# === Docker (if applicable) ===
+# === Docker ===
 *.pid
 *.log
 docker-compose.override.yml
